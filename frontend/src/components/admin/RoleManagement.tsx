@@ -1,9 +1,10 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Users, Shield, Loader2, UserCog } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAllUsers, updateUserRole, type AdminUser } from '@/services/adminService'
+import { supabase } from '../../lib/supabase-client';
+import { getAllUsers, updateUserRole, type AdminUser } from '@backend/services/adminService'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,7 +42,7 @@ export function RoleManagement({ adminEmail, onNavigate, onLogout }: RoleManagem
     async function fetchUsers() {
       try {
         setLoading(true)
-        const data = await getAllUsers()
+        const data = await getAllUsers(supabase as any)
         setUsers(data)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi'
@@ -56,7 +57,7 @@ export function RoleManagement({ adminEmail, onNavigate, onLogout }: RoleManagem
   const handleRoleChange = async (userId: string, newRole: 'user' | 'admin') => {
     setUpdatingUserId(userId)
     try {
-      await updateUserRole(userId, newRole)
+      await updateUserRole(supabase as any, userId, newRole)
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
       toast.success(`Đã cập nhật vai trò thành ${newRole === 'admin' ? 'Quản trị viên' : 'Người dùng'}`)
     } catch (err) {

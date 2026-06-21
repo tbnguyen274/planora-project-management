@@ -7,21 +7,14 @@ import { toast } from "sonner"
 import { Check, X, Bell } from "lucide-react"
 import { supabase } from "../../lib/supabase-client"
 import { 
-  fetchPendingInvitations, 
+  fetchPendingProjectInvitations, 
   acceptProjectInvitation, 
-  rejectProjectInvitation 
-} from "../../utils/invitationService"
-
-interface Invitation {
-  id: string;
-  projectId: string;
-  projectName: string;
-  inviterName: string;
-  createdAt: string;
-}
+  rejectProjectInvitation,
+} from "@backend/services/invitationService"
+import type { ProjectInvitation } from "@backend/types"
 
 export function InvitationsList() {
-  const [invites, setInvites] = useState<Invitation[]>([])
+  const [invites, setInvites] = useState<ProjectInvitation[]>([])
   const [loading, setLoading] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
 
@@ -41,7 +34,7 @@ export function InvitationsList() {
   // Fetch invitations
   const loadInvitations = async () => {
     if (!currentUser) return;
-    const invitations = await fetchPendingInvitations(currentUser.id);
+    const invitations = await fetchPendingProjectInvitations(supabase as any, currentUser.id);
     setInvites(invitations);
   };
 
@@ -85,9 +78,10 @@ export function InvitationsList() {
     if (!currentUser) return;
     
     setLoading(true);
-    const result = await acceptProjectInvitation({
+    const result = await acceptProjectInvitation(supabase as any, {
       invitationId,
-      currentUser,
+      currentUserId: currentUser.id,
+      currentUserName: currentUser.name,
     });
     
     if (result.success) {
@@ -102,9 +96,10 @@ export function InvitationsList() {
     if (!currentUser) return;
     
     setLoading(true);
-    const result = await rejectProjectInvitation({
+    const result = await rejectProjectInvitation(supabase as any, {
       invitationId,
-      currentUser,
+      currentUserId: currentUser.id,
+      currentUserName: currentUser.name,
     });
     
     if (result.success) {

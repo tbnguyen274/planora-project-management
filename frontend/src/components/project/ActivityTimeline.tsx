@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { Loader2, History, CheckCircle2, Edit, Trash2, UserPlus, MessageSquare, ArrowRight, RefreshCw } from "lucide-react"
-import { getProjectActivityLogs, getActionLabel, type ProjectActivityLog } from "../../services/projectActivityService"
+import { getProjectActivityLogs, type ProjectActivityLog } from "@backend/services/projectActivityService"
+import { supabase } from "../../lib/supabase-client"
 import type { Project } from "../../types"
 
 interface ActivityTimelineProps {
@@ -42,7 +43,7 @@ export function ActivityTimeline({ project }: ActivityTimelineProps) {
         try {
             setLoading(true)
             setError(null)
-            const data = await getProjectActivityLogs(project.id, 100)
+            const data = await getProjectActivityLogs(supabase as any, project.id, 100)
             setLogs(data)
         } catch (err) {
             setError('Không thể tải lịch sử hoạt động')
@@ -73,6 +74,20 @@ export function ActivityTimeline({ project }: ActivityTimelineProps) {
 
     const getInitials = (name: string) => {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    }
+
+    const getActionLabel = (action: string, entityType?: string) => {
+        const labels: Record<string, string> = {
+            'created': 'Tạo mới',
+            'updated': 'Cập nhật',
+            'deleted': 'Xóa',
+            'status_changed': 'Đổi trạng thái',
+            'assigned': 'Giao nhiệm vụ',
+            'comment_added': 'Thêm bình luận',
+            'added': 'Thêm',
+            'removed': 'Xóa',
+        }
+        return labels[action.toLowerCase()] || action
     }
 
     const getActivityDescription = (log: ProjectActivityLog): React.ReactNode => {

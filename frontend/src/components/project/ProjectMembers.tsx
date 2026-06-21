@@ -27,7 +27,7 @@ interface ProjectMembersProps {
   project: Project
   isManager: boolean
   onUpdateProject: (projectId: string, updates: Partial<Project>) => void
-  onSendInvitation: (projectId: string, email: string) => Promise<{ success: boolean; error?: string }>
+  onSendInvitation: (projectId: string, email: string) => Promise<boolean>
 }
 
 export function ProjectMembers({ user, project, isManager, onUpdateProject, onSendInvitation }: ProjectMembersProps) {
@@ -59,10 +59,10 @@ export function ProjectMembers({ user, project, isManager, onUpdateProject, onSe
       }
 
       // 2. Send invitation using useProjects hook (will check if user exists)
-      const inviteResult = await onSendInvitation(project.id, emailToAdd.trim())
+      const result = await onSendInvitation(project.id, emailToAdd.trim())
 
-      if (!inviteResult.success) {
-        toast.error(inviteResult.error || "Không thể gửi lời mời")
+      if (!result) {
+        toast.error("Không thể gửi lời mời", { description: "Lỗi nội bộ." })
         setIsLoading(false)
         return
       }

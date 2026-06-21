@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { Users, Activity, Loader2, TrendingUp, CheckCircle2, Clock, FolderOpen } from 'lucide-react'
 import { toast } from 'sonner'
-import { getActivityLogs, getSystemStats, getDetailedStats, type ActivityLog, type SystemStats, type DetailedStats } from '@/services/adminService'
+import { supabase } from '../../lib/supabase-client';
+import { getActivityLogs, getSystemStats, getDetailedStats, type ActivityLog, type SystemStats, type DetailedStats } from '@backend/services/adminService'
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -64,9 +65,9 @@ export function Dashboard({ adminEmail, onNavigate, onLogout }: DashboardProps) 
             try {
                 setLoading(true)
                 const [logsData, statsData, detailedData] = await Promise.all([
-                    getActivityLogs(10),
-                    getSystemStats(),
-                    getDetailedStats()
+                    getActivityLogs(supabase as any, 10),
+                    getSystemStats(supabase as any),
+                    getDetailedStats(supabase as any)
                 ])
                 setActivityLogs(logsData)
                 setStats(statsData)

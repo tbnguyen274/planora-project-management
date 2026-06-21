@@ -3,7 +3,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase-client';
-import type { JoinRequest } from './useProjects';
+import {
+  fetchJoinRequestsForManager,
+  approveJoinRequest,
+  declineJoinRequest,
+  type JoinRequest,
+} from '@backend/services/joinRequestService';
+
+// Re-export for backward compatibility with useProjects
+export type { JoinRequest };
 
 interface UseJoinRequestsProps {
     userId: string | null;
@@ -23,44 +31,8 @@ export function useJoinRequests({ userId, managedProjectIds }: UseJoinRequestsPr
         }
 
         try {
-            const { data, error } = await supabase
-                .from('join_requests')
-                .select(`
-          id,
-          project_id,
-          user_id,
-          request_type,
-          status,
-          created_at,
-          projects!inner (
-            id,
-            name
-          ),
-          users!join_requests_user_id_fkey (
-            id,
-            name,
-            email
-          )
-        `)
-                .eq('request_type', 'request') // Only fetch requests, not invitations
-                .in('project_id', managedProjectIds) // Only projects user manages
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-
-            const transformedRequests: JoinRequest[] = (data || []).map((r: any) => ({
-                id: r.id,
-                projectId: r.project_id,
-                projectName: r.projects?.name || 'Unknown Project',
-                userId: r.user_id,
-                userName: r.users?.name || 'Unknown User',
-                userEmail: r.users?.email || '',
-                requestType: r.request_type,
-                status: r.status,
-                createdAt: r.created_at,
-            }));
-
-            setJoinRequests(transformedRequests);
+            const data = await fetchJoinRequestsForManager(supabase as any, managedProjectIds);
+            setJoinRequests(data);
         } catch (err: any) {
             console.error('Error fetching join requests:', err);
             toast.error('Không thể tải danh sách yêu cầu');
@@ -72,7 +44,6 @@ export function useJoinRequests({ userId, managedProjectIds }: UseJoinRequestsPr
     // Initial fetch
     useEffect(() => {
         fetchJoinRequests();
-        // fetchJoinRequests is memoized, safe to omit from deps
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, managedProjectIds.join(',')]);
 
@@ -91,7 +62,6 @@ export function useJoinRequests({ userId, managedProjectIds }: UseJoinRequestsPr
                     filter: `project_id=in.(${managedProjectIds.join(',')})`,
                 },
                 () => {
-                    console.log('Join request updated, refetching...');
                     fetchJoinRequests();
                 }
             )
@@ -100,19 +70,14 @@ export function useJoinRequests({ userId, managedProjectIds }: UseJoinRequestsPr
         return () => {
             supabase.removeChannel(channel);
         };
-        // fetchJoinRequests is stable, safe to omit
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, managedProjectIds.join(',')]);
 
     // Approve join request
     const handleApproveJoinRequest = useCallback(async (requestId: string) => {
         try {
-            const { error } = await supabase.rpc('approve_join_request', {
-                request_id: requestId,
-            });
-
-            if (error) throw error;
-
+            const result = await approveJoinRequest(supabase as any, requestId);
+            if (!result.success) throw new Error(result.error);
             toast.success('Đã chấp nhận yêu cầu tham gia');
             await fetchJoinRequests();
         } catch (err: any) {
@@ -121,15 +86,11 @@ export function useJoinRequests({ userId, managedProjectIds }: UseJoinRequestsPr
         }
     }, [fetchJoinRequests]);
 
-    // Reject join request
+    // Decline join request
     const handleRejectJoinRequest = useCallback(async (requestId: string) => {
         try {
-            const { error } = await supabase.rpc('decline_join_request', {
-                request_id: requestId,
-            });
-
-            if (error) throw error;
-
+            const result = await declineJoinRequest(supabase as any, requestId);
+            if (!result.success) throw new Error(result.error);
             toast.success('Đã từ chối yêu cầu tham gia');
             await fetchJoinRequests();
         } catch (err: any) {

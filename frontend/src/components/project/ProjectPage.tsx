@@ -22,7 +22,7 @@ interface ProjectPageProps {
   onUpdateProject: (projectId: string, updates: Partial<Project>) => void
   onDeleteProject: (projectId: string) => void
   onMoveToTrash?: (projectId: string) => void
-  onSendInvitation: (projectId: string, email: string) => Promise<{ success: boolean; error?: string }>
+  onSendInvitation: (projectId: string, email: string) => Promise<boolean>
   onCreateTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt" | "comments" | "attachments">) => void
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void
   onDeleteTask: (taskId: string) => void

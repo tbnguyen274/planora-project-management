@@ -39,7 +39,7 @@ export function CreateTaskDialog({
     priority: 'medium' as Task['priority'],
     status: initialStatus,
     assignees: [] as string[],
-    deadline: '',
+    dueDate: '',
     labels: [] as string[],
     storyPoints: 5,
   });
@@ -63,7 +63,7 @@ export function CreateTaskDialog({
       priority: formData.priority,
       status: formData.status,
       assignees: formData.assignees,
-      deadline: formData.deadline || undefined,
+      dueDate: formData.dueDate || undefined,
       labels: formData.labels,
       storyPoints: isUserStory && isScrum ? formData.storyPoints : undefined,
       parentTaskId: parentTaskId,
@@ -105,7 +105,7 @@ export function CreateTaskDialog({
 
       setFormData({
         ...formData,
-        deadline: suggestedDeadline.toISOString().split('T')[0],
+        dueDate: suggestedDeadline.toISOString().split('T')[0],
       });
 
       toast.success(`AI đề xuất: ${days} ngày để hoàn thành`);
@@ -260,8 +260,8 @@ export function CreateTaskDialog({
             <Input
               id="deadline"
               type="date"
-              value={formData.deadline}
-              onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+              value={formData.dueDate}
+              onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
               className="h-11"
             />
           </div>
