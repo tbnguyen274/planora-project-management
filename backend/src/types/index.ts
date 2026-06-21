@@ -219,6 +219,5 @@ export interface ServiceResult<T = void> {
   data?: T;
   error?: string;
 }
-export interface TaskProposal { id: string; taskId: string; changes: Partial<Task>; reason?: string; proposedBy: string; status: 'pending' | 'approved' | 'rejected'; createdAt: string; }
 
 export interface TaskProposal { id: string; taskId: string; changes: Partial<Task>; reason?: string; proposedBy: string; status: 'pending' | 'approved' | 'rejected'; createdAt: string; }
