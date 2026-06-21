@@ -19,6 +19,7 @@ import {
   updateParentTaskStatus,
 } from '../repositories/taskRepository.js';
 import { logProjectActivity } from './activityService.js';
+import { createNotification } from './notificationService.js';
 import type { Task, ServiceResult } from '../types/index.js';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -60,14 +61,13 @@ export async function createTask(
     if (input.assignees && input.assignees.length > 0) {
       for (const assigneeId of input.assignees) {
         if (assigneeId !== input.reporterId) {
-          await supabase.from('notifications').insert({
-            user_id: assigneeId,
+          await createNotification(supabase, {
+            userId: assigneeId,
             type: 'task_assigned',
             title: `Nhiệm vụ mới: ${input.title}`,
             content: `Bạn được giao nhiệm vụ mới`,
-            entity_type: 'task',
-            entity_id: taskId,
-            is_read: false,
+            entityType: 'task',
+            entityId: taskId,
           });
         }
       }

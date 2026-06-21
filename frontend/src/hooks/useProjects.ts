@@ -64,7 +64,7 @@ export function useProjects({ user }: UseProjectsProps) {
     if (!user?.email) return;
 
     try {
-      const pending = await fetchPendingProjectInvitations(supabase as any, user.email);
+      const pending = await fetchPendingProjectInvitations(supabase as any, user.id);
       setInvitations(pending);
     } catch (err) {
       console.error('Error fetching invitations:', err);
@@ -215,7 +215,18 @@ export function useProjects({ user }: UseProjectsProps) {
 
   const handleSendInvitation = async (projectId: string, email: string) => {
     if (!user) return false;
-    const res = await sendProjectInvitation(supabase as any, { projectId, inviteeEmail: email, currentUserId: user.id, currentUserName: user.name || "", projectName: "" });
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) {
+      toast.error('Không tìm thấy dự án');
+      return false;
+    }
+    const res = await sendProjectInvitation(supabase as any, { 
+      projectId, 
+      inviteeEmail: email.toLowerCase().trim(), 
+      currentUserId: user.id, 
+      currentUserName: user.name || "", 
+      projectName: project.name 
+    });
     if (!res.success) {
       toast.error(res.error);
       return false;

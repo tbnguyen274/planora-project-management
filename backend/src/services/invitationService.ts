@@ -232,12 +232,13 @@ export async function fetchPendingProjectInvitations(supabase: SupabaseClient, u
   const { data, error } = await supabase
     .from('join_requests')
     .select(`
-      id, project_id, created_at, invited_by,
+      id, project_id, created_at, invited_by, email, request_type,
       projects (id, name),
       inviter:users!join_requests_invited_by_fkey (id, name, email)
     `)
     .eq('user_id', userId)
     .eq('status', 'pending')
+    .eq('request_type', 'invitation')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -250,11 +251,11 @@ export async function fetchPendingProjectInvitations(supabase: SupabaseClient, u
     projectId: inv.project_id,
     projectName: inv.projects?.name ?? 'Unknown Project',
     userId,
-    email: '',
+    email: inv.email ?? '',
     invitedBy: inv.invited_by,
     inviterName: inv.inviter?.name ?? 'Unknown',
     inviterEmail: inv.inviter?.email ?? '',
-    requestType: 'invitation',
+    requestType: inv.request_type as 'invitation' | 'request',
     status: 'pending',
     createdAt: inv.created_at,
   }));

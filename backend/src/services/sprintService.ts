@@ -3,7 +3,6 @@
 // =====================================================
 // Business logic for Sprint management.
 // =====================================================
-import { v4 as uuidv4 } from 'uuid';
 import type { Sprint, ServiceResult } from '../types/index.js';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -58,7 +57,7 @@ export async function createSprint(
 ): Promise<ServiceResult<Sprint>> {
   try {
     const sprintNumber = existingSprintCount + 1;
-    const newSprintId = uuidv4();
+    const newSprintId = crypto.randomUUID();
     const now = new Date().toISOString();
 
     const { data: newSprint, error: sprintError } = await supabase
