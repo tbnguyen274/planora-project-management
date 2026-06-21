@@ -1,9 +1,18 @@
 {
 	"scripts": {
+		"build": "pnpm --filter frontend run build",
 		"deploy:email": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-email-function.ps1",
 		"test:email": "powershell -ExecutionPolicy Bypass -File ./scripts/test-email-function.ps1"
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "^2.89.0"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"@parcel/watcher",
+			"@swc/core",
+			"core-js",
+			"esbuild"
+		]
 	}
 }
