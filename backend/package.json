@@ -1,0 +1,23 @@
+{
+  "name": "@planora/backend",
+  "version": "1.0.0",
+  "description": "Planora backend — business logic, services, repositories, middleware",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "ts-morph": "^28.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -102,7 +102,7 @@ export function ProtectedRoutes({ onEnterAdmin }: ProtectedRoutesProps) {
 
     // Filter notifications and invitations for current user
     const userNotifications = notifications.filter((n) => n.userId === user?.id);
-    const userInvitations = invitations.filter((i) => i.invitedEmail === user?.email);
+    const userInvitations = invitations.filter((i) => i.userId === user?.id);
 
     // Get projects where user is owner or manager
     const managedProjectIds = projects

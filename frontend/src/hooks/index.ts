@@ -3,7 +3,7 @@ export { useSupabaseAuth } from './useAuth';
 export type { User } from './useAuth';
 
 export { useProjects } from './useProjects';
-export type { Project, ProjectMember, ProjectInvitation, JoinRequest } from './useProjects';
+export type { Project, ProjectMember, ProjectInvitation } from './useProjects';
 
 export { useTasks } from './useTasks';
 export type { Task, TaskProposal, Comment, Attachment } from './useTasks';
@@ -21,3 +21,4 @@ export { useProjectDiscovery } from './useProjectDiscovery';
 export type { DiscoverableProject } from './useProjectDiscovery';
 
 export { useJoinRequests } from './useJoinRequests';
+export type { JoinRequest } from './useJoinRequests';

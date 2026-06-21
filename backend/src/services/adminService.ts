@@ -1,11 +1,11 @@
-/**
- * Admin Service - Handles admin-related API calls to Supabase
- */
-import { getSupabaseClient } from '../lib/supabase-client';
-import type { Database } from '../types/supabase';
+// =====================================================
+// ADMIN SERVICE
+// =====================================================
 
-type UserRow = Database['public']['Tables']['users']['Row'];
-type ActivityLogRow = Database['public']['Tables']['activity_logs']['Row'];
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+type UserRow = any;
+type ActivityLogRow = any;
 
 export interface AdminUser {
     id: string;
@@ -44,9 +44,7 @@ export interface SystemStats {
 /**
  * Fetch all users for admin management
  */
-export async function getAllUsers(): Promise<AdminUser[]> {
-    const supabase = getSupabaseClient();
-
+export async function getAllUsers(supabase: SupabaseClient): Promise<AdminUser[]> {
     const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -74,11 +72,10 @@ export async function getAllUsers(): Promise<AdminUser[]> {
  * Update user status (activate/suspend)
  */
 export async function updateUserStatus(
+    supabase: SupabaseClient,
     userId: string,
     status: 'active' | 'suspended'
 ): Promise<void> {
-    const supabase = getSupabaseClient();
-
     const { error } = await supabase
         .from('users')
         .update({ status })
@@ -94,11 +91,10 @@ export async function updateUserStatus(
  * Update user role
  */
 export async function updateUserRole(
+    supabase: SupabaseClient,
     userId: string,
     role: 'user' | 'admin'
 ): Promise<void> {
-    const supabase = getSupabaseClient();
-
     const { error } = await supabase
         .from('users')
         .update({ role })
@@ -113,11 +109,9 @@ export async function updateUserRole(
 /**
  * Trigger password reset email for a user
  */
-export async function resetUserPassword(email: string): Promise<void> {
-    const supabase = getSupabaseClient();
-
+export async function resetUserPassword(supabase: SupabaseClient, email: string): Promise<void> {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `https://planora-app.vercel.app/reset-password`,
     });
 
     if (error) {
@@ -129,9 +123,7 @@ export async function resetUserPassword(email: string): Promise<void> {
 /**
  * Fetch activity logs for system monitoring
  */
-export async function getActivityLogs(limit: number = 50): Promise<ActivityLog[]> {
-    const supabase = getSupabaseClient();
-
+export async function getActivityLogs(supabase: SupabaseClient, limit: number = 50): Promise<ActivityLog[]> {
     const { data, error } = await supabase
         .from('activity_logs')
         .select(`
@@ -164,9 +156,7 @@ export async function getActivityLogs(limit: number = 50): Promise<ActivityLog[]
 /**
  * Fetch system statistics for dashboard
  */
-export async function getSystemStats(): Promise<SystemStats> {
-    const supabase = getSupabaseClient();
-
+export async function getSystemStats(supabase: SupabaseClient): Promise<SystemStats> {
     // Fetch counts in parallel
     const [usersResult, projectsResult, tasksResult] = await Promise.all([
         supabase.from('users').select('id, role, status', { count: 'exact', head: false }),
@@ -191,12 +181,12 @@ export async function getSystemStats(): Promise<SystemStats> {
 /**
  * Delete a user (soft delete - sets status to suspended)
  */
-export async function deleteUser(userId: string): Promise<void> {
+export async function deleteUser(supabase: SupabaseClient, userId: string): Promise<void> {
     // For safety, we soft-delete by suspending the user
-    return updateUserStatus(userId, 'suspended');
+    return updateUserStatus(supabase, userId, 'suspended');
 }
 
-// ===== PROJECT MANAGEMENT =====
+// --- PROJECT MANAGEMENT ---
 
 export interface AdminProject {
     id: string;
@@ -214,9 +204,7 @@ export interface AdminProject {
 /**
  * Fetch all projects for admin management
  */
-export async function getAllProjects(): Promise<AdminProject[]> {
-    const supabase = getSupabaseClient();
-
+export async function getAllProjects(supabase: SupabaseClient): Promise<AdminProject[]> {
     // Fetch projects with owner info
     const { data: projects, error } = await supabase
         .from('projects')
@@ -233,7 +221,7 @@ export async function getAllProjects(): Promise<AdminProject[]> {
     }
 
     // Get member counts and task counts
-    const projectIds = (projects || []).map(p => p.id);
+    const projectIds = (projects || []).map((p: any) => p.id);
 
     const [membersResult, tasksResult] = await Promise.all([
         supabase
@@ -288,9 +276,7 @@ export async function getAllProjects(): Promise<AdminProject[]> {
 /**
  * Delete a project (soft delete)
  */
-export async function deleteProject(projectId: string): Promise<void> {
-    const supabase = getSupabaseClient();
-
+export async function deleteProject(supabase: SupabaseClient, projectId: string): Promise<void> {
     const { error } = await supabase
         .from('projects')
         .update({ deleted_at: new Date().toISOString() })
@@ -302,7 +288,7 @@ export async function deleteProject(projectId: string): Promise<void> {
     }
 }
 
-// ===== DETAILED STATISTICS =====
+// --- DETAILED STATISTICS ---
 
 export interface TaskStatusStats {
     status: string;
@@ -330,9 +316,7 @@ export interface DetailedStats {
 /**
  * Fetch detailed statistics for charts
  */
-export async function getDetailedStats(): Promise<DetailedStats> {
-    const supabase = getSupabaseClient();
-
+export async function getDetailedStats(supabase: SupabaseClient): Promise<DetailedStats> {
     // Fetch all data in parallel
     const [usersResult, projectsResult, tasksResult] = await Promise.all([
         supabase.from('users').select('id, role, created_at'),

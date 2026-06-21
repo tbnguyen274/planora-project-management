@@ -79,7 +79,7 @@ export function TaskCard({ task, project, allTasks, user, onClick, showStoryPoin
     })
   }
 
-  const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done"
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done"
 
   const handleStatusChange = (newStatus: Task["status"]) => {
     if (onUpdateTask) {
@@ -177,10 +177,10 @@ export function TaskCard({ task, project, allTasks, user, onClick, showStoryPoin
           {assigneeNames.length > 0 ? assigneeNames.join(", ") : "Chưa phân công"}
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {task.deadline && (
+          {task.dueDate && (
             <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${isOverdue ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-700"}`}>
               <Clock className="w-3.5 h-3.5" />
-              <span className="font-medium">{formatDate(task.deadline)}</span>
+              <span className="font-medium">{formatDate(task.dueDate)}</span>
             </div>
           )}
           {canEdit ? (

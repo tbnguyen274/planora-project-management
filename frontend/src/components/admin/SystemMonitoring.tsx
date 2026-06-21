@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { LayoutDashboard, Users, Shield, FolderKanban, BarChart3, LogOut, Settings, Activity, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getActivityLogs, getSystemStats, type ActivityLog, type SystemStats } from '@/services/adminService'
+import { supabase } from '../../lib/supabase-client';
+import { getActivityLogs, getSystemStats, type ActivityLog, type SystemStats } from '@backend/services/adminService'
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -61,8 +62,8 @@ export function SystemMonitoring({ adminEmail, onNavigate, onLogout }: SystemMon
         setLoading(true)
         setError(null)
         const [logsData, statsData] = await Promise.all([
-          getActivityLogs(20),
-          getSystemStats()
+          getActivityLogs(supabase as any, 20),
+          getSystemStats(supabase as any)
         ])
         setActivityLogs(logsData)
         setStats(statsData)

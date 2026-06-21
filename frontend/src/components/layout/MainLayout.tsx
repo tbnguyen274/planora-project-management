@@ -42,8 +42,8 @@ interface MainLayoutProps {
   notifications: Notification[]
   invitations: ProjectInvitation[]
   joinRequests?: JoinRequest[]
-  onAddNotification: (notification: any) => void
-  onSendInvitation: (projectId: string, email: string) => void
+  onAddNotification: (type: any, title: string, content: string, entityType?: string, entityId?: string) => Promise<boolean>
+  onSendInvitation: (projectId: string, email: string) => Promise<boolean>
   onAcceptInvitation: (invitationId: string) => void
   onRejectInvitation?: (invitationId: string) => void
   onCreateJoinRequest?: (projectId: string) => void

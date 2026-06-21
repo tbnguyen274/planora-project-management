@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { LayoutDashboard, Users, Shield, FolderKanban, BarChart3, Loader2, Settings, LogOut, TrendingUp, CheckCircle2, Clock } from 'lucide-react'
 import { toast } from 'sonner'
-import { getDetailedStats, type DetailedStats } from '@/services/adminService'
+import { supabase } from '../../lib/supabase-client';
+import { getDetailedStats, type DetailedStats } from '@backend/services/adminService'
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -76,7 +77,7 @@ export function Statistics({ adminEmail, onNavigate, onLogout }: StatisticsProps
         async function fetchStats() {
             try {
                 setLoading(true)
-                const data = await getDetailedStats()
+                const data = await getDetailedStats(supabase as any)
                 setStats(data)
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi'

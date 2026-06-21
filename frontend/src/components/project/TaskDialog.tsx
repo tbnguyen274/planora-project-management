@@ -133,7 +133,7 @@ export function TaskDialog({
       suggestedDeadline.setDate(suggestedDeadline.getDate() + days);
       setEditedTask({
         ...editedTask,
-        deadline: suggestedDeadline.toISOString().split('T')[0],
+        dueDate: suggestedDeadline.toISOString().split('T')[0],
       });
       toast.success(`AI đề xuất: ${days} ngày để hoàn thành`);
     } catch (error) {
@@ -326,7 +326,7 @@ export function TaskDialog({
     return new Date(dateString).toLocaleString('vi-VN');
   };
 
-  const isOverdue = editedTask.deadline && new Date(editedTask.deadline) < new Date() && editedTask.status !== 'done';
+  const isOverdue = editedTask.dueDate && new Date(editedTask.dueDate) < new Date() && editedTask.status !== 'done';
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -646,7 +646,7 @@ export function TaskDialog({
                               </a>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <p className="text-xs text-gray-500">
-                                  {formatDateTime(attachment.uploadedAt || '')}
+                                  {formatDateTime(attachment.createdAt || '')}
                                 </p>
                                 {fileSize > 0 && (
                                   <>
@@ -761,14 +761,14 @@ export function TaskDialog({
                 {isEditing ? (
                   <Input
                     type="date"
-                    value={editedTask.deadline || ''}
-                    onChange={(e) => setEditedTask({ ...editedTask, deadline: e.target.value })}
+                    value={editedTask.dueDate || ''}
+                    onChange={(e) => setEditedTask({ ...editedTask, dueDate: e.target.value })}
                     className="w-full h-9 border text-sm"
                   />
-                ) : editedTask.deadline ? (
+                ) : editedTask.dueDate ? (
                   <div className={`flex items-center justify-center gap-2 text-sm px-3 py-2 rounded font-semibold ${isOverdue ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-blue-100 text-blue-700 border border-blue-300'}`}>
                     <Clock className="w-4 h-4" />
-                    <span>{new Date(editedTask.deadline).toLocaleDateString('vi-VN')}</span>
+                    <span>{new Date(editedTask.dueDate).toLocaleDateString('vi-VN')}</span>
                     {isOverdue && <AlertCircle className="w-4 h-4" />}
                   </div>
                 ) : (

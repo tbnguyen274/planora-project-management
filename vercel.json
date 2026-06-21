@@ -1,6 +1,6 @@
 {
     "buildCommand": "pnpm run build",
-    "outputDirectory": "build",
+    "outputDirectory": "frontend/build",
     "installCommand": "pnpm install",
     "framework": "vite",
     "rewrites": [

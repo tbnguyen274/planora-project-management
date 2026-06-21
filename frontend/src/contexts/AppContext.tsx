@@ -8,6 +8,7 @@ import { useSprints } from '../hooks/useSprints';
 import { useNotifications } from '../hooks/useNotifications';
 import { useSettings } from '../hooks/useSettings';
 import type { User, Project, Task, Sprint, Settings, Notification, ProjectInvitation } from '../types';
+import type { NotificationType } from "@backend/types/index";
 import type { UserRole } from '../hooks/useSupabaseAuth';
 
 interface AppContextType {
@@ -30,12 +31,12 @@ interface AppContextType {
     handleDeleteProject: (projectId: string) => void;
     handleRestoreProject: (projectId: string) => void;
     handlePermanentlyDeleteProject: (projectId: string) => void;
-    handleSendInvitation: (projectId: string, email: string) => Promise<{ success: boolean; error?: string }>;
+    handleSendInvitation: (projectId: string, email: string) => Promise<boolean>;
     handleAcceptInvitation: (invitationId: string) => void;
     handleRejectInvitation: (invitationId: string) => void;
-    handleRemoveMember: (projectId: string, userId: string) => Promise<{ success: boolean }>;
-    handleLeaveProject: (projectId: string) => Promise<{ success: boolean }>;
-    handleUpdateMemberRole: (projectId: string, userId: string, newRole: 'manager' | 'member') => Promise<{ success: boolean }>;
+    handleRemoveMember: (projectId: string, userId: string) => Promise<boolean>;
+    handleLeaveProject: (projectId: string) => Promise<boolean>;
+    handleUpdateMemberRole: (projectId: string, userId: string, newRole: 'manager' | 'member') => Promise<boolean>;
 
     // Tasks
     tasks: Task[];
@@ -59,7 +60,7 @@ interface AppContextType {
 
     // Notifications
     notifications: Notification[];
-    handleAddNotification: (notification: Omit<Notification, 'id' | 'createdAt'>) => void;
+    handleAddNotification: (type: NotificationType, title: string, content: string, entityType?: string, entityId?: string) => Promise<boolean>;
     handleMarkNotificationAsRead: (notificationId: string) => void;
     handleMarkAllNotificationsAsRead: () => void;
     handleDeleteNotification: (notificationId: string) => void;
@@ -93,18 +94,8 @@ export function AppProvider({ children, onEnterAdmin }: AppProviderProps) {
     const projectsHook = useProjects({
         user: auth.user,
     });
-    const tasksHook = useTasks();
-    const sprintsHook = useSprints({
-        tasks: tasksHook.tasks,
-        setTasks: (setter: any) => {
-            // Since useTasks doesn't expose setTasks, we'll need to update tasks through the hook
-            // For now, keep this as a passthrough
-            if (typeof setter === 'function') {
-                const newTasks = setter(tasksHook.tasks);
-                // This won't work directly, we need to update tasks through createTask/updateTask
-            }
-        }
-    });
+    const tasksHook = useTasks({ user: auth.user });
+    const sprintsHook = useSprints({ user: auth.user });
     const settingsHook = useSettings(auth.user?.id);
 
     // Wrapped handlers with navigation (async for Supabase)
@@ -181,13 +172,13 @@ export function AppProvider({ children, onEnterAdmin }: AppProviderProps) {
         const project = projectsHook.projects.find(p => p.id === projectId);
         tasksHook.proposeTaskChange('', task, `Proposed by ${auth.user.name}`);
         if (project) {
-            notificationsHook.handleAddNotification({
-                userId: project.ownerId,
-                type: 'project_update',
-                title: 'Có đề xuất nhiệm vụ mới',
-                content: `${auth.user.name} đã đề xuất tạo nhiệm vụ: "${task.title}" trong dự án "${project.name}"`,
-                isRead: false,
-            });
+            notificationsHook.handleAddNotification(
+                'project_update' as any,
+                'Có đề xuất nhiệm vụ mới',
+                `${auth.user.name} đã đề xuất tạo nhiệm vụ: "${task.title}" trong dự án "${project.name}"`,
+                'project',
+                project.id
+            );
         }
     };
 
@@ -196,13 +187,11 @@ export function AppProvider({ children, onEnterAdmin }: AppProviderProps) {
         if (!proposal) return;
 
         tasksHook.approveProposal(proposalId);
-        notificationsHook.handleAddNotification({
-            userId: proposal.proposedBy,
-            type: 'project_update',
-            title: 'Đề xuất được chấp thuận',
-            content: `Đề xuất của bạn cho nhiệm vụ "${proposal.changes.title || 'Unknown'}" đã được chấp thuận`,
-            isRead: false,
-        });
+        notificationsHook.handleAddNotification(
+            'project_update' as any,
+            'Đề xuất được chấp thuận',
+            `Đề xuất của bạn cho nhiệm vụ "${proposal.changes.title || 'Unknown'}" đã được chấp thuận`
+        );
     };
 
     const handleRejectTaskProposal = (proposalId: string) => {
@@ -210,13 +199,11 @@ export function AppProvider({ children, onEnterAdmin }: AppProviderProps) {
         if (!proposal) return;
 
         tasksHook.rejectProposal(proposalId);
-        notificationsHook.handleAddNotification({
-            userId: proposal.proposedBy,
-            type: 'project_update',
-            title: 'Đề xuất bị từ chối',
-            content: `Đề xuất của bạn cho nhiệm vụ "${proposal.changes.title || 'Unknown'}" đã bị từ chối`,
-            isRead: false,
-        });
+        notificationsHook.handleAddNotification(
+            'project_update' as any,
+            'Đề xuất bị từ chối',
+            `Đề xuất của bạn cho nhiệm vụ "${proposal.changes.title || 'Unknown'}" đã bị từ chối`
+        );
     };
 
     const value: AppContextType = {

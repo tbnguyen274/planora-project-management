@@ -1,885 +1,279 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase-client';
-import { v4 as uuidv4 } from 'uuid';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
-import { logProjectActivity } from '../services/projectActivityService';
+import { v4 as uuidv4 } from 'uuid';
+import type { User } from './useAuth';
+import { supabase } from '../lib/supabase-client';
+import {
+  getTasksByUser,
+  getTasksByProject,
+  createTask as createTaskService,
+  updateTask as updateTaskService,
+  deleteTask as deleteTaskService,
+  restoreTask as restoreTaskService,
+  permanentlyDeleteTask as hardDeleteTaskService,
+  addComment as addCommentService,
+  addAttachment as addAttachmentService,
+  deleteAttachment as deleteAttachmentService
+} from '@backend/services/taskService';
+import type { Task, Comment, Attachment, TaskProposal } from '@backend/types/index';
 
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: 'backlog' | 'todo' | 'in-progress' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  type?: 'task' | 'user-story' | 'bug' | 'epic';
-  dueDate?: string;
-  deadline?: string; // Alias for dueDate for backward compatibility
-  parentTaskId?: string;
-  sprintId?: string;
-  projectId: string;
-  createdBy: string;
-  assignees: string[];
-  comments: Comment[];
-  attachments: Attachment[];
-  labels?: string[];
-  timeEstimate?: number;
-  timeSpent?: number;
-  storyPoints?: number;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string;
+// Re-export for backward compatibility
+export type { Task, Comment, Attachment, TaskProposal };
+
+interface UseTasksProps {
+  user: User | null;
+  projectId?: string;
 }
 
-export interface Comment {
-  id: string;
-  taskId: string;
-  content: string;
-  authorId: string;
-  authorName?: string;
-  userName?: string; // Alias for authorName
-  createdAt: string;
-}
-
-export interface Attachment {
-  id: string;
-  taskId: string;
-  name: string;
-  url: string;
-  type: string;
-  fileSize?: number; // File size in bytes
-  uploadedBy: string;
-  createdAt: string;
-  uploadedAt?: string; // Alias for createdAt
-}
-
-export interface TaskProposal {
-  id: string;
-  taskId: string;
-  proposedBy: string;
-  changes: Partial<Task>;
-  reason?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-}
-
-export const useTasks = () => {
+export const useTasks = ({ user, projectId }: UseTasksProps) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskProposals, setTaskProposals] = useState<TaskProposal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch tasks from Supabase
-  const fetchTasks = async () => {
-    try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setTasks([]);
-        setLoading(false);
-        return;
-      }
+  const channelsRef = useRef<any[]>([]);
 
-      // Get user's projects first
-      const { data: projectMembers, error: projectError } = await supabase
-        .from('project_members')
-        .select('project_id')
-        .eq('user_id', user.id);
-
-      if (projectError) throw projectError;
-
-      const projectIds = projectMembers?.map(pm => pm.project_id) || [];
-
-      if (projectIds.length === 0) {
-        setTasks([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch tasks with nested data
-      const { data, error } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          task_assignees!task_assignees_task_id_fkey (
-            user_id,
-            users!task_assignees_user_id_fkey (
-              id,
-              name,
-              email
-            )
-          ),
-          comments (
-            id,
-            content,
-            author_id,
-            created_at,
-            users (
-              id,
-              name
-            )
-          ),
-          attachments (
-            id,
-            name,
-            url,
-            type,
-            file_size,
-            uploaded_by,
-            created_at
-          )
-        `)
-        .in('project_id', projectIds)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Transform database format to app format
-      const transformedTasks: Task[] = (data || []).map((dbTask: any) => ({
-        id: dbTask.id,
-        title: dbTask.title,
-        description: dbTask.description || '',
-        status: dbTask.status,
-        priority: dbTask.priority,
-        type: dbTask.type,
-        dueDate: dbTask.due_date,
-        deadline: dbTask.due_date,
-        parentTaskId: dbTask.parent_id,
-        sprintId: dbTask.sprint_id,
-        projectId: dbTask.project_id,
-        createdBy: dbTask.reporter_id,
-        assignees: (dbTask.task_assignees || []).map((ta: any) => ta.user_id),
-        comments: (dbTask.comments || []).map((c: any) => ({
-          id: c.id,
-          taskId: dbTask.id,
-          content: c.content,
-          authorId: c.author_id,
-          authorName: c.users?.name || 'Unknown',
-          userName: c.users?.name || 'Unknown',
-          createdAt: c.created_at,
-        })),
-        attachments: (dbTask.attachments || []).map((a: any) => ({
-          id: a.id,
-          taskId: dbTask.id,
-          name: a.name,
-          url: a.url,
-          type: a.type,
-          fileSize: a.file_size || 0,
-          uploadedBy: a.uploaded_by,
-          uploadedAt: a.created_at,
-          createdAt: a.created_at,
-        })),
-        labels: dbTask.labels || [],
-        storyPoints: dbTask.story_points,
-        timeEstimate: dbTask.time_estimate,
-        timeSpent: dbTask.time_spent,
-        createdAt: dbTask.created_at,
-        updatedAt: dbTask.updated_at,
-        deletedAt: dbTask.deleted_at,
-      }));
-
-      setTasks(transformedTasks);
+  // ========================================
+  // 1. FETCH DATA
+  // ========================================
+  const fetchTasks = useCallback(async () => {
+    if (!user) {
+      setTasks([]);
       setLoading(false);
-    } catch (error: any) {
+      return;
+    }
+
+    try {
+      let data;
+      if (projectId) {
+        data = await getTasksByProject(supabase as any, projectId);
+      } else {
+        data = await getTasksByUser(supabase as any, user.id);
+      }
+      setTasks(data);
+    } catch (error) {
       console.error('Error fetching tasks:', error);
-      toast.error('Failed to fetch tasks: ' + error.message);
+      toast.error('Lỗi khi tải danh sách nhiệm vụ');
+    } finally {
       setLoading(false);
     }
-  };
+  }, [user, projectId]);
 
-  // Setup realtime subscriptions
+  // ========================================
+  // 2. INITIAL LOAD & REALTIME
+  // ========================================
   useEffect(() => {
     fetchTasks();
+  }, [fetchTasks]);
 
-    // Subscribe to tasks changes
+  useEffect(() => {
+    if (!user) return;
+
+    const channelId = `${user.id}_${Date.now()}`;
+
     const tasksChannel = supabase
-      .channel('tasks_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks' },
-        () => fetchTasks()
-      )
+      .channel(`tasks_changes_${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        fetchTasks();
+      })
       .subscribe();
 
-    // Subscribe to comments changes
     const commentsChannel = supabase
-      .channel('comments_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'comments' },
-        () => fetchTasks()
-      )
+      .channel(`comments_changes_${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => {
+        fetchTasks();
+      })
       .subscribe();
 
-    // Subscribe to attachments changes
     const attachmentsChannel = supabase
-      .channel('attachments_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'attachments' },
-        () => fetchTasks()
-      )
+      .channel(`attachments_changes_${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attachments' }, () => {
+        fetchTasks();
+      })
       .subscribe();
+
+    channelsRef.current = [tasksChannel, commentsChannel, attachmentsChannel];
 
     return () => {
-      supabase.removeChannel(tasksChannel);
-      supabase.removeChannel(commentsChannel);
-      supabase.removeChannel(attachmentsChannel);
+      channelsRef.current.forEach(c => supabase.removeChannel(c));
+      channelsRef.current = [];
     };
-  }, []);
+  }, [user, fetchTasks]);
 
-  // Create a new task
+  // ========================================
+  // 3. HANDLERS
+  // ========================================
   const createTask = async (taskData: Omit<Task, 'id' | 'comments' | 'attachments' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('You must be logged in to create tasks');
-        return { success: false };
-      }
-
-      const newTaskId = uuidv4();
-      const now = new Date().toISOString();
-
-      // Get next task number for this project
-      const { data: existingTasks, error: countError } = await supabase
-        .from('tasks')
-        .select('task_number')
-        .eq('project_id', taskData.projectId)
-        .order('task_number', { ascending: false })
-        .limit(1);
-
-      if (countError) throw countError;
-
-      const nextTaskNumber = existingTasks && existingTasks.length > 0
-        ? existingTasks[0].task_number + 1
-        : 1;
-
-      // Insert task
-      const { data: newTask, error: taskError } = await supabase
-        .from('tasks')
-        .insert({
-          id: newTaskId,
-          project_id: taskData.projectId,
-          task_number: nextTaskNumber,
-          title: taskData.title,
-          description: taskData.description,
-          status: taskData.status,
-          priority: taskData.priority,
-          type: taskData.type || 'task',
-          due_date: taskData.dueDate,
-          parent_id: taskData.parentTaskId,
-          sprint_id: taskData.sprintId,
-          reporter_id: user.id,
-          time_estimate: taskData.timeEstimate,
-          time_spent: taskData.timeSpent,
-          created_at: now,
-          updated_at: now,
-        })
-        .select()
-        .single();
-
-      if (taskError) throw taskError;
-
-      // Insert assignees
-      if (taskData.assignees && taskData.assignees.length > 0) {
-        const assigneesData = taskData.assignees.map(userId => ({
-          task_id: newTaskId,
-          user_id: userId,
-          assigned_at: now,
-        }));
-
-        const { error: assigneesError } = await supabase
-          .from('task_assignees')
-          .insert(assigneesData);
-
-        if (assigneesError) throw assigneesError;
-
-        // Send notifications to assignees
-        for (const assigneeId of taskData.assignees) {
-          if (assigneeId !== user.id) {
-            await supabase.from('notifications').insert({
-              user_id: assigneeId,
-              type: 'task_assigned',
-              title: `Nhiệm vụ mới: ${taskData.title}`,
-              content: `Bạn được giao nhiệm vụ mới`,
-              entity_type: 'task',
-              entity_id: newTaskId,
-              is_read: false,
-            });
-          }
-        }
-      }
-
-      // Update parent task status if applicable
-      if (taskData.parentTaskId) {
-        await updateParentTaskStatus(taskData.parentTaskId);
-      }
-
-      // Log activity
-      await logProjectActivity({
-        projectId: taskData.projectId,
-        userId: user.id,
-        action: 'created',
-        entityType: 'task',
-        entityId: newTaskId,
-        taskId: newTaskId,
-        newValue: { title: taskData.title, status: taskData.status },
-      });
-
-      toast.success('Task created successfully!');
-      await fetchTasks();
-      return { success: true, taskId: newTaskId };
-    } catch (error: any) {
-      console.error('Error creating task:', error);
-      toast.error('Failed to create task: ' + error.message);
-      return { success: false };
+    if (!user) {
+      toast.error('Bạn cần đăng nhập để tạo nhiệm vụ');
+      return { success: false, error: 'Not logged in' };
     }
+    const res = await createTaskService(supabase as any, {
+      ...taskData,
+      reporterId: user.id,
+      assignees: taskData.assignees || [],
+    });
+    
+    if (res.success) {
+      toast.success('Đã tạo nhiệm vụ');
+      fetchTasks();
+      return { success: true, taskId: res.data?.taskId };
+    }
+    toast.error(res.error || 'Lỗi khi tạo nhiệm vụ');
+    return { success: false, error: res.error };
   };
 
-  // Update parent task status based on subtasks
-  const updateParentTaskStatus = async (parentTaskId: string) => {
-    try {
-      const { data: subtasks, error } = await supabase
-        .from('tasks')
-        .select('status')
-        .eq('parent_id', parentTaskId)
-        .is('deleted_at', null);
-
-      if (error) throw error;
-
-      if (!subtasks || subtasks.length === 0) return;
-
-      const allDone = subtasks.every((task: any) => task.status === 'done');
-      const anyInProgress = subtasks.some((task: any) => task.status === 'in-progress');
-
-      let newStatus: 'todo' | 'in-progress' | 'done' = 'todo';
-      if (allDone) {
-        newStatus = 'done';
-      } else if (anyInProgress) {
-        newStatus = 'in-progress';
-      }
-
-      await supabase
-        .from('tasks')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', parentTaskId);
-
-    } catch (error) {
-      console.error('Error updating parent task status:', error);
-    }
-  };
-
-  // Update a task
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('You must be logged in to update tasks');
-        return { success: false };
-      }
-
-      // Optimistic update
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === taskId
-            ? { ...task, ...updates, updatedAt: new Date().toISOString() }
-            : task
-        )
-      );
-
-      // Prepare database updates
-      const dbUpdates: any = {
-        updated_at: new Date().toISOString(),
-      };
-
-      if (updates.title !== undefined) dbUpdates.title = updates.title;
-      if (updates.description !== undefined) dbUpdates.description = updates.description;
-      if (updates.status !== undefined) dbUpdates.status = updates.status;
-      if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
-      if (updates.type !== undefined) dbUpdates.type = updates.type;
-      if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
-      if (updates.deadline !== undefined) dbUpdates.due_date = updates.deadline;
-      if (updates.sprintId !== undefined) dbUpdates.sprint_id = updates.sprintId;
-      if (updates.timeEstimate !== undefined) dbUpdates.time_estimate = updates.timeEstimate;
-      if (updates.timeSpent !== undefined) dbUpdates.time_spent = updates.timeSpent;
-      if (updates.storyPoints !== undefined) dbUpdates.story_points = updates.storyPoints;
-
-      const { error } = await supabase
-        .from('tasks')
-        .update(dbUpdates)
-        .eq('id', taskId);
-
-      if (error) throw error;
-
-      // Update assignees if provided
-      if (updates.assignees !== undefined) {
-        // Delete existing assignees
-        await supabase
-          .from('task_assignees')
-          .delete()
-          .eq('task_id', taskId);
-
-        // Insert new assignees
-        if (updates.assignees.length > 0) {
-          const assigneesData = updates.assignees.map(userId => ({
-            task_id: taskId,
-            user_id: userId,
-            assigned_at: new Date().toISOString(),
-          }));
-
-          await supabase
-            .from('task_assignees')
-            .insert(assigneesData);
-        }
-      }
-
-      // Get parent task ID for status update
-      const { data: taskData } = await supabase
-        .from('tasks')
-        .select('parent_id')
-        .eq('id', taskId)
-        .single();
-
-      if (taskData?.parent_id) {
-        await updateParentTaskStatus(taskData.parent_id);
-      }
-
-      // Log activity - find the task to get projectId
-      const currentTask = tasks.find(t => t.id === taskId);
-      if (currentTask) {
-        // Check if status changed
-        if (updates.status && updates.status !== currentTask.status) {
-          await logProjectActivity({
-            projectId: currentTask.projectId,
-            userId: user.id,
-            action: 'status_changed',
-            entityType: 'task',
-            entityId: taskId,
-            taskId: taskId,
-            oldValue: currentTask.status,
-            newValue: updates.status,
-          });
-        } else {
-          // General update
-          await logProjectActivity({
-            projectId: currentTask.projectId,
-            userId: user.id,
-            action: 'updated',
-            entityType: 'task',
-            entityId: taskId,
-            taskId: taskId,
-            newValue: updates,
-          });
-        }
-      }
-
-      // Toast is shown by the caller (TaskDialog)
-      await fetchTasks();
-      return { success: true };
-    } catch (error: any) {
-      console.error('Error updating task:', error);
-      toast.error('Failed to update task: ' + error.message);
-      await fetchTasks(); // Rollback
-      return { success: false };
+    if (!user) {
+      toast.error('Bạn cần đăng nhập để cập nhật nhiệm vụ');
+      return { success: false, error: 'Not logged in' };
     }
+    const res = await updateTaskService(supabase as any, taskId, updates, user.id);
+    if (res.success) {
+      fetchTasks();
+      return { success: true };
+    }
+    toast.error(res.error || 'Lỗi khi cập nhật nhiệm vụ');
+    return { success: false, error: res.error };
   };
 
-  // Soft delete a task
   const deleteTask = async (taskId: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('You must be logged in to delete tasks');
-        return { success: false };
-      }
-
-      // Optimistic update
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === taskId
-            ? { ...task, deletedAt: new Date().toISOString() }
-            : task
-        )
-      );
-
-      const now = new Date().toISOString();
-      const { error } = await supabase
-        .from('tasks')
-        .update({
-          deleted_at: now,
-          updated_at: now,
-        })
-        .eq('id', taskId);
-
-      if (error) throw error;
-
-      // Log activity
-      const deletedTask = tasks.find(t => t.id === taskId);
-      if (deletedTask) {
-        await logProjectActivity({
-          projectId: deletedTask.projectId,
-          userId: user.id,
-          action: 'deleted',
-          entityType: 'task',
-          entityId: taskId,
-          taskId: taskId,
-          oldValue: { title: deletedTask.title },
-        });
-      }
-
-      toast.success('Task moved to trash');
-      await fetchTasks();
+    if (!user) return { success: false };
+    const res = await deleteTaskService(supabase as any, taskId, user.id);
+    if (res.success) {
+      toast.success('Đã chuyển nhiệm vụ vào thùng rác');
+      fetchTasks();
       return { success: true };
-    } catch (error: any) {
-      console.error('Error deleting task:', error);
-      toast.error('Failed to delete task: ' + error.message);
-      await fetchTasks(); // Rollback
-      return { success: false };
     }
+    toast.error(res.error);
+    return { success: false, error: res.error };
   };
 
-  // Restore a deleted task
   const restoreTask = async (taskId: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('You must be logged in to restore tasks');
-        return { success: false };
-      }
-
-      // Optimistic update
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === taskId
-            ? { ...task, status: 'todo' as const, deletedAt: undefined }
-            : task
-        )
-      );
-
-      const { error } = await supabase
-        .from('tasks')
-        .update({
-          status: 'todo',
-          deleted_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId);
-
-      if (error) throw error;
-
-      toast.success('Task restored successfully');
-      await fetchTasks();
+    const res = await restoreTaskService(supabase as any, taskId);
+    if (res.success) {
+      toast.success('Đã khôi phục nhiệm vụ');
+      fetchTasks();
       return { success: true };
-    } catch (error: any) {
-      console.error('Error restoring task:', error);
-      toast.error('Failed to restore task: ' + error.message);
-      await fetchTasks(); // Rollback
-      return { success: false };
     }
+    toast.error(res.error);
+    return { success: false, error: res.error };
   };
 
-  // Permanently delete a task
   const permanentlyDeleteTask = async (taskId: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('You must be logged in to permanently delete tasks');
-        return { success: false };
-      }
-
-      // Optimistic update
-      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
-
-      // Delete assignees first (foreign key constraint)
-      await supabase
-        .from('task_assignees')
-        .delete()
-        .eq('task_id', taskId);
-
-      // Delete comments
-      await supabase
-        .from('comments')
-        .delete()
-        .eq('task_id', taskId);
-
-      // Delete attachments
-      await supabase
-        .from('attachments')
-        .delete()
-        .eq('task_id', taskId);
-
-      // Delete the task
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId);
-
-      if (error) throw error;
-
-      toast.success('Task permanently deleted');
-      await fetchTasks();
+    const res = await hardDeleteTaskService(supabase as any, taskId);
+    if (res.success) {
+      toast.success('Đã xóa vĩnh viễn nhiệm vụ');
+      fetchTasks();
       return { success: true };
-    } catch (error: any) {
-      console.error('Error permanently deleting task:', error);
-      toast.error('Failed to permanently delete task: ' + error.message);
-      await fetchTasks(); // Rollback
-      return { success: false };
     }
+    toast.error(res.error);
+    return { success: false, error: res.error };
   };
 
-  // Add a comment to a task
   const addComment = async (taskId: string, content: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('You must be logged in to add comments');
-        return { success: false };
-      }
-
-      const newComment = {
-        id: uuidv4(),
-        task_id: taskId,
-        content,
-        author_id: user.id,
-        created_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from('comments')
-        .insert(newComment);
-
-      if (error) throw error;
-
-      // Log activity
-      const commentedTask = tasks.find(t => t.id === taskId);
-      if (commentedTask) {
-        await logProjectActivity({
-          projectId: commentedTask.projectId,
-          userId: user.id,
-          action: 'comment_added',
-          entityType: 'task',
-          entityId: taskId,
-          taskId: taskId,
-          newValue: { content: content.substring(0, 100) },
-        });
-      }
-
-      toast.success('Comment added successfully');
-      await fetchTasks();
-      return { success: true };
-    } catch (error: any) {
-      console.error('Error adding comment:', error);
-      toast.error('Failed to add comment: ' + error.message);
-      return { success: false };
+    if (!user) return { success: false };
+    const res = await addCommentService(supabase as any, taskId, content, user.id);
+    if (res.success) {
+      fetchTasks();
+      return { success: true, commentId: res.data?.commentId };
     }
+    toast.error(res.error);
+    return { success: false, error: res.error };
   };
 
-  // Add an attachment to a task
-  const addAttachment = async (taskId: string, file: File) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Bạn cần đăng nhập để tải lên tệp tin');
-        return { success: false };
-      }
+  const addAttachmentByUrl = async (taskId: string, attachment: { name: string; url: string; type: string }) => {
+    if (!user) return { success: false };
+    const res = await addAttachmentService(supabase as any, taskId, attachment, user.id);
+    if (res.success) {
+      fetchTasks();
+      return { success: true, attachmentId: res.data?.attachmentId };
+    }
+    toast.error(res.error);
+    return { success: false, error: res.error };
+  };
 
-      // Validate file size (max 10MB)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+  const addAttachment = async (taskId: string, file: File) => {
+    if (!user) {
+      toast.error('Bạn cần đăng nhập để tải tệp lên');
+      return { success: false, error: 'Not logged in' };
+    }
+    try {
+      const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
         toast.error('Kích thước file vượt quá 10MB');
-        return { success: false };
+        return { success: false, error: 'File too large' };
       }
 
-      // Upload file to Supabase Storage
       const fileExt = file.name.split('.').pop();
-      const timestamp = Date.now();
-      const fileName = `${timestamp}-${uuidv4()}.${fileExt}`;
-      const filePath = fileName; // No subfolder, just filename
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const fileName = `${Date.now()}-${uuidv4()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
         .from('task-attachments')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error(`Lỗi tải lên: ${uploadError.message}`);
-      }
+      if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('task-attachments')
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
-      // Insert attachment record
-      const newAttachment = {
-        id: uuidv4(),
-        task_id: taskId,
+      return await addAttachmentByUrl(taskId, {
         name: file.name,
         url: publicUrl,
-        type: file.type,
-        file_size: file.size,
-        uploaded_by: user.id,
-        created_at: new Date().toISOString(),
-      };
-
-      const { error: dbError } = await supabase
-        .from('attachments')
-        .insert(newAttachment);
-
-      if (dbError) {
-        // If database insert fails, delete the uploaded file
-        await supabase.storage.from('task-attachments').remove([filePath]);
-        throw new Error(`Lỗi lưu thông tin: ${dbError.message}`);
-      }
-
-      toast.success('Đã tải lên tệp tin thành công!');
-      await fetchTasks();
-      return { success: true };
+        type: file.type || 'application/octet-stream',
+      });
     } catch (error: any) {
-      console.error('Error adding attachment:', error);
-      toast.error(error.message || 'Không thể tải lên tệp tin');
-      return { success: false };
+      toast.error('Lỗi khi tải tệp lên');
+      return { success: false, error: error.message };
     }
   };
 
-  // Add an attachment by URL (for links/external images)
-  const addAttachmentByUrl = async (taskId: string, attachment: { name: string; url: string; type: string }) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Bạn cần đăng nhập để thêm tài liệu');
-        return { success: false };
-      }
-
-      // Insert attachment record
-      const newAttachment = {
-        id: uuidv4(),
-        task_id: taskId,
-        name: attachment.name,
-        url: attachment.url,
-        type: attachment.type,
-        file_size: 0, // URL-based attachments don't have file size
-        uploaded_by: user.id,
-        created_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from('attachments')
-        .insert(newAttachment);
-
-      if (error) throw error;
-
-      toast.success('Đã thêm tài liệu đính kèm!');
-      await fetchTasks();
-      return { success: true };
-    } catch (error: any) {
-      console.error('Error adding attachment by URL:', error);
-      toast.error('Lỗi khi thêm tài liệu: ' + error.message);
-      return { success: false };
-    }
-  };
-
-  // Delete an attachment
   const deleteAttachment = async (attachmentId: string) => {
-    try {
-      // First, get the attachment details to find the file path
-      const { data: attachment, error: fetchError } = await supabase
-        .from('attachments')
-        .select('url, type')
-        .eq('id', attachmentId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Delete the database record
-      const { error: deleteError } = await supabase
-        .from('attachments')
-        .delete()
-        .eq('id', attachmentId);
-
-      if (deleteError) throw deleteError;
-
-      // If it's a file stored in Supabase Storage (not an external URL), delete it
-      if (attachment && attachment.url && attachment.url.includes('supabase')) {
-        try {
-          // Extract file path from URL
-          const urlParts = attachment.url.split('/storage/v1/object/public/attachments/');
-          if (urlParts.length > 1) {
-            const filePath = urlParts[1];
-            await supabase.storage
-              .from('task-attachments')
-              .remove([filePath]);
-          }
-        } catch (storageError) {
-          // Log but don't fail - the database record is already deleted
-          console.warn('Could not delete file from storage:', storageError);
-        }
+    const res = await deleteAttachmentService(supabase as any, attachmentId);
+    if (res.success && res.data) {
+      const { url } = res.data;
+      const urlParts = url.split('/storage/v1/object/public/task-attachments/');
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1];
+        await supabase.storage.from('task-attachments').remove([filePath]);
       }
-
-      toast.success('Đã xóa tài liệu!');
-      await fetchTasks();
+      fetchTasks();
       return { success: true };
-    } catch (error: any) {
-      console.error('Error deleting attachment:', error);
-      toast.error('Lỗi khi xóa tài liệu: ' + error.message);
-      return { success: false };
     }
+    toast.error(res.error);
+    return { success: false, error: res.error };
   };
 
-  // Task Proposals (kept in memory for now, can migrate to DB later)
+  // Proposals (mocked as state for now, similar to original)
   const proposeTaskChange = async (taskId: string, changes: Partial<Task>, reason?: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('You must be logged in to propose changes');
-        return { success: false };
-      }
-
-      const newProposal: TaskProposal = {
-        id: uuidv4(),
-        taskId,
-        proposedBy: user.id,
-        changes,
-        reason,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      };
-
-      setTaskProposals(prev => [...prev, newProposal]);
-      toast.success('Proposal submitted successfully');
-      return { success: true, proposalId: newProposal.id };
-    } catch (error: any) {
-      console.error('Error proposing task change:', error);
-      toast.error('Failed to propose change: ' + error.message);
-      return { success: false };
-    }
+    if (!user) return { success: false };
+    const newProposal: TaskProposal = {
+      id: uuidv4(),
+      taskId,
+      changes,
+      reason,
+      proposedBy: user.id,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    setTaskProposals(prev => [...prev, newProposal]);
+    toast.success('Đã gửi đề xuất thay đổi');
+    return { success: true };
   };
 
   const approveProposal = async (proposalId: string) => {
     const proposal = taskProposals.find(p => p.id === proposalId);
     if (!proposal) return { success: false };
-
-    const result = await updateTask(proposal.taskId, proposal.changes);
-
-    if (result.success) {
-      setTaskProposals(prev =>
-        prev.map(p =>
-          p.id === proposalId ? { ...p, status: 'approved' as const } : p
-        )
-      );
-      toast.success('Proposal approved and applied');
+    const res = await updateTask(proposal.taskId, proposal.changes);
+    if (res.success) {
+      setTaskProposals(prev => prev.map(p => p.id === proposalId ? { ...p, status: 'approved' as const } : p));
+      toast.success('Đã phê duyệt đề xuất');
     }
-
-    return result;
+    return res;
   };
 
   const rejectProposal = (proposalId: string) => {
-    setTaskProposals(prev =>
-      prev.map(p =>
-        p.id === proposalId ? { ...p, status: 'rejected' as const } : p
-      )
-    );
-    toast.success('Proposal rejected');
+    setTaskProposals(prev => prev.map(p => p.id === proposalId ? { ...p, status: 'rejected' as const } : p));
+    toast.success('Đã từ chối đề xuất');
     return { success: true };
   };
 

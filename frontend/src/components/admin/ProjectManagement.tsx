@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { FolderKanban, Trash2, Loader2, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAllProjects, deleteProject, type AdminProject } from '@/services/adminService'
+import { supabase } from '../../lib/supabase-client';
+import { getAllProjects, deleteProject, type AdminProject } from '@backend/services/adminService'
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -49,7 +50,7 @@ export function ProjectManagement({ adminEmail, onNavigate, onLogout }: ProjectM
         async function fetchProjects() {
             try {
                 setLoading(true)
-                const data = await getAllProjects()
+                const data = await getAllProjects(supabase as any)
                 setProjects(data)
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi'
@@ -74,7 +75,7 @@ export function ProjectManagement({ adminEmail, onNavigate, onLogout }: ProjectM
 
         setIsDeleting(true)
         try {
-            await deleteProject(projectToDelete.id)
+            await deleteProject(supabase as any, projectToDelete.id)
             setProjects(prev => prev.filter(p => p.id !== projectToDelete.id))
             toast.success(`Đã xóa dự án "${projectToDelete.name}"`)
             setDeleteDialogOpen(false)

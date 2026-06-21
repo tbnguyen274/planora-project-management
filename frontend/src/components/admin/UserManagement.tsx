@@ -1,9 +1,10 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Users, KeyRound, Loader2, UserPlus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAllUsers, resetUserPassword, updateUserStatus, type AdminUser } from '@/services/adminService'
+import { supabase } from '../../lib/supabase-client';
+import { getAllUsers, resetUserPassword, updateUserStatus, type AdminUser } from '@backend/services/adminService'
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -47,7 +48,7 @@ export function AdminDashboard({ adminEmail, onNavigate, onLogout }: AdminDashbo
       try {
         setLoading(true)
         setError(null)
-        const data = await getAllUsers()
+        const data = await getAllUsers(supabase as any)
         setUsers(data)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi'
@@ -65,7 +66,7 @@ export function AdminDashboard({ adminEmail, onNavigate, onLogout }: AdminDashbo
 
     setIsResetting(true)
     try {
-      await resetUserPassword(resetPasswordUser.email)
+      await resetUserPassword(supabase as any, resetPasswordUser.email)
       toast.success(`Đã gửi email đặt lại mật khẩu đến ${resetPasswordUser.email}`)
       setResetPasswordUser(null)
     } catch (err) {
@@ -79,7 +80,7 @@ export function AdminDashboard({ adminEmail, onNavigate, onLogout }: AdminDashbo
   const handleToggleUserStatus = async (user: AdminUser) => {
     const newStatus = user.status === 'active' ? 'suspended' : 'active'
     try {
-      await updateUserStatus(user.id, newStatus)
+      await updateUserStatus(supabase as any, user.id, newStatus)
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u))
       toast.success(`Đã ${newStatus === 'active' ? 'kích hoạt' : 'khóa'} tài khoản ${user.name}`)
     } catch (err) {

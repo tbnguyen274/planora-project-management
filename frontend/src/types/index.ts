@@ -4,8 +4,8 @@ export type {
     Project,
     ProjectMember,
     ProjectInvitation,
-    JoinRequest
 } from '../hooks/useProjects';
+export type { JoinRequest } from '../hooks/useJoinRequests';
 export type {
     Task,
     TaskProposal,

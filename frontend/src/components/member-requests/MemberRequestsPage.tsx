@@ -4,7 +4,7 @@ import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Badge } from "../ui/badge"
 import { Check, X, Users, Calendar } from "lucide-react"
-import type { JoinRequest } from "../../types"
+import type { JoinRequest } from '@backend/services/joinRequestService'
 
 interface MemberRequestsPageProps {
   joinRequests: JoinRequest[]
@@ -48,8 +48,8 @@ export function MemberRequestsPage({
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-base">{request.userName || request.userEmail}</CardTitle>
-                      <CardDescription>{request.userEmail}</CardDescription>
+                      <CardTitle className="text-base">{request.userName || request.email}</CardTitle>
+                      <CardDescription>{request.email}</CardDescription>
                     </div>
                     <Badge>Chờ xử lý</Badge>
                   </div>
@@ -95,8 +95,8 @@ export function MemberRequestsPage({
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-base">{request.userName || request.userEmail}</CardTitle>
-                      <CardDescription>{request.userEmail}</CardDescription>
+                      <CardTitle className="text-base">{request.userName || request.email}</CardTitle>
+                      <CardDescription>{request.email}</CardDescription>
                     </div>
                     <Badge variant={request.status === "accepted" ? "default" : "destructive"}>
                       {request.status === "accepted" ? "Đã chấp nhận" : "Đã từ chối"}

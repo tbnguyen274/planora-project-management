@@ -23,8 +23,8 @@ export function DashboardPage({
   const completedTasks = tasks.filter(t => t.status === 'done').length;
   const inProgressTasks = tasks.filter(t => t.status === 'in-progress').length;
   const overdueTasks = tasks.filter(t => {
-    if (!t.deadline) return false;
-    return new Date(t.deadline) < new Date() && t.status !== 'done';
+    if (!t.dueDate) return false;
+    return new Date(t.dueDate) < new Date() && t.status !== 'done';
   }).length;
 
   const myTasks = tasks.filter(t => t.assignees.includes(user.id));
@@ -278,10 +278,10 @@ export function DashboardPage({
                             {getPriorityLabel(task.priority)}
                           </Badge>
                         </div>
-                        {task.deadline && (
+                        {task.dueDate && (
                           <div className="flex items-center gap-1 text-xs text-gray-600">
                             <Clock className="w-3 h-3" />
-                            <span>{formatDate(task.deadline)}</span>
+                            <span>{formatDate(task.dueDate)}</span>
                           </div>
                         )}
                       </div>
