@@ -4,11 +4,11 @@
 
 This repository contains the code and documentation for the Intro to Software Engineering Group 6 project. The project focuses on developing **Planora** - a user-friendly, efficient, and AI-powered project management tool that supports both Kanban and Scrum methodologies.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-Intro2SE_Group6/
-├── frontend/              # React + Vite frontend application
+planora-project-management/
+├── frontend/              # React + Vite frontend
 │   ├── src/
 │   │   ├── components/    # React UI components
 │   │   │   ├── admin/     # Admin dashboard
@@ -24,29 +24,53 @@ Intro2SE_Group6/
 │   │   │   ├── trash/     # Trash management
 │   │   │   ├── ui/        # shadcn/ui components
 │   │   │   └── routes/    # Route guards
-│   │   ├── contexts/      # React Context (Auth, App)
-│   │   ├── hooks/         # Custom React hooks (13 hooks)
+│   │   ├── contexts/      # React Context (Auth, App state)
+│   │   ├── hooks/         # Custom React hooks (UI state only)
 │   │   ├── lib/           # Supabase client, utilities
-│   │   ├── services/      # Business logic services
-│   │   │   ├── adminService.ts
-│   │   │   ├── exportService.ts
-│   │   │   └── projectActivityService.ts
-│   │   ├── routes/        # Route definitions
+│   │   ├── services/
+│   │   │   └── exportService.ts  # Client-side PDF/Excel export
+│   │   ├── routes/        # Route definitions (SPA routing)
 │   │   ├── test/          # Unit & Integration tests
 │   │   ├── types/         # TypeScript types
-│   │   └── utils/         # Helper functions
-│   ├── .env               # Environment variables
+│   │   └── utils/         # UI helper functions
+│   ├── .env               # Frontend env vars (VITE_SUPABASE_*)
 │   ├── package.json
-│   ├── vitest.config.ts   # Vitest configuration
+│   ├── vitest.config.ts
 │   └── vite.config.ts
 │
-├── supabase/              # Supabase Backend
+├── backend/               # Backend logic: services, repositories, middleware
+│   ├── src/
+│   │   ├── types/
+│   │   │   └── index.ts             # Shared backend types
+│   │   ├── middleware/
+│   │   │   └── rbacMiddleware.ts    # RBAC permission system
+│   │   ├── repositories/            # Data Access Layer (DB queries)
+│   │   │   ├── userRepository.ts
+│   │   │   ├── projectRepository.ts
+│   │   │   └── taskRepository.ts
+│   │   ├── services/                # Business Logic Layer
+│   │   │   ├── adminService.ts      # Admin: users, projects, stats
+│   │   │   ├── authService.ts       # Auth: role check, token validation
+│   │   │   ├── activityService.ts   # Activity log read/write
+│   │   │   ├── invitationService.ts # Invitation flow
+│   │   │   ├── joinRequestService.ts # Join request and project discovery
+│   │   │   ├── notificationService.ts # Notification management
+│   │   │   ├── projectActivityService.ts # Project activity timeline
+│   │   │   ├── projectService.ts    # Project CRUD + members
+│   │   │   ├── sprintService.ts     # Sprint management
+│   │   │   └── taskService.ts       # Task CRUD + comments + attachments
+│   │   └── index.ts                 # Public API barrel export
+│   ├── .env.example
+│   ├── package.json
+│   └── README.md
+│
+├── supabase/              # Supabase configuration
 │   ├── functions/         # Edge Functions (AI services)
 │   │   ├── chat/                  # AI chat assistant
 │   │   ├── enhance-description/   # Task description enhancement
 │   │   ├── estimate-time/         # Time estimation
 │   │   └── send-invitation-email/ # Email invitations
-│   └── migrations/        # Database migrations
+│   └── migrations/        # Database migrations & RLS policies
 │
 ├── docs/                  # Documentation
 │   ├── analysis-and-design/
@@ -88,7 +112,7 @@ Intro2SE_Group6/
 ### State Management & Data Flow
 - **React Hooks** - useState, useEffect, useRef for local state
 - **Context API** - AppContext, AuthContext for global state
-- **Custom Hooks** - useAuth, useProjects, useTasks, useSprints, useNotifications
+- **Custom Hooks** - useAuth, useProjects, useTasks, useSprints, useNotifications, useJoinRequests, useProjectDiscovery
 
 ### UI Features
 - **Sonner** - Toast notifications
@@ -115,14 +139,14 @@ Intro2SE_Group6/
 - **ESLint & Prettier** - Code quality and formatting
 - **tsx** - TypeScript execution for Node.js
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - **Node.js 18+** (recommended: Node 20 LTS)
 - **pnpm** (recommended) or npm
 - **Supabase account** for database and authentication
 
-### ⚠️ PowerShell Users (Windows)
+### PowerShell Users (Windows)
 If you encounter script execution errors, run this in each new terminal:
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -145,7 +169,7 @@ VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-## 🛠️ Available Scripts
+## Available Scripts
 
 ### Frontend (`cd frontend`)
 | Command | Description |
@@ -156,7 +180,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 | `pnpm test:coverage` | Run tests with coverage report |
 | `pnpm test:ui` | Run tests with Vitest UI |
 
-## 🧪 Testing
+## Testing
 
 The project uses **Vitest** for testing. Tests are located in `frontend/src/test/`.
 
@@ -177,7 +201,7 @@ pnpm test:ui
 - **Integration Tests**: Component interactions, form submissions
 - **Test Files**: `*.test.ts` or `*.test.tsx`
 
-## 🚀 Deployment
+## Deployment
 
 ### Deploy to Vercel
 
@@ -202,29 +226,30 @@ pnpm test:ui
 
 > **Note**: The `vercel.json` file is already configured with SPA routing support.
 
-## ✨ Features
+## Features
 
 ### User Features
-- 🔐 User authentication (register, login, password recovery)
-- 📊 Dashboard with project overview and statistics
-- 📋 Kanban board for visual task management
-- 🏃 Scrum board with sprint planning
-- 👥 Project member management and invitations
-- 💬 AI-powered chat assistant
-- 🤖 AI task description enhancement
-- ⏱️ AI time estimation for tasks
-- 🗑️ Trash system for deleted projects/tasks
-- 🔔 Real-time notifications
-- 📤 Export data to PDF/Excel
-- ⚙️ User settings and profile customization
-- 🌙 Dark mode support
+- User authentication (register, login, password recovery)
+- Dashboard with project overview and statistics
+- Project discovery and join requests
+- Kanban board for visual task management
+- Scrum board with sprint planning
+- Project member management and invitations
+- AI-powered chat assistant
+- AI task description enhancement
+- AI time estimation for tasks
+- Trash system for deleted projects/tasks
+- Real-time notifications
+- Export data to PDF/Excel
+- User settings and profile customization
+- Dark mode support
 
 ### Admin Features
-- 👨‍💼 User management dashboard
-- 🛡️ Role-based access control
-- 📈 System monitoring and analytics
-- 📊 Activity timeline and logs
-- ⚙️ System settings configuration
+- User management dashboard
+- Role-based access control
+- System monitoring and analytics
+- Activity timeline and logs
+- System settings configuration
 
 ### AI Features (Supabase Edge Functions)
 - **Chat Assistant**: Interactive AI helper for project management
@@ -234,7 +259,7 @@ pnpm test:ui
 ### Other Backend Features
 - **Email Invitations**: Automated project invitation emails via Edge Function
 
-## 📚 Documentation
+## Documentation
 
 ### Getting Started
 - [Quick Start Guide](docs/analysis-and-design/QUICK_START.md)
@@ -246,6 +271,6 @@ pnpm test:ui
 - [Unit Testing Guide](docs/test/UNIT_TESTING.md)
 - [Integration Testing Guide](docs/test/INTEGRATION_TESTING.md)
 
-## 📄 License
+## License
 
 MIT License
